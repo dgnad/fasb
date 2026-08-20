@@ -197,12 +197,16 @@ The aliases `:cache` and `:opt` remain available for compatibility.
 
 ## Python bindings
 
-1. Install [maturin](https://github.com/pyo3/maturin)
-2. Create new virtual environment for maturin: `python -m venv venv` and source it
-   `source venv/bin/activate` (or use any package manager you prefer)
-3. Build Python module using maturin: `maturin develop`
-4. Start Python instance in venv and import fasb module: `import fasb`
-5. Start fasb in Python: `fasb.start_fasb([], 'your_lp_file.lp', True, False)`
+1. [install uv](https://docs.astral.sh/uv/getting-started/installation/)
+2. build the extension module and set up the environment: `uv sync`
+3. run anything in that environment with `uv run`:
+
+```console
+uv run python -c "import fasb; fasb.start_fasb([], 'your_lp_file.lp', True, False)"
+uv run your_script.py
+```
+
+After editing the Rust sources, rebuild with `uv sync --reinstall-package fasb`.
 
 Currently you can use and import following (sub)modules:
 
@@ -222,6 +226,36 @@ from fasb import start_fasb_interpreter
 from fasb import start_fasb
 ```
 
+Instead of starting a REPL you can drive a navigator directly. The second
+argument of `PyNavigator` is the clingo argument list, so clingo flags and
+constants are passed through here:
+
+```python
+from fasb import interpreter_bindings as ib
+from fasb import wrappers_bindings as wb
+
+program = open("test/blocks.lp").read()
+# "0" enumerates all models; -c horizon=12 overrides the #const in the program.
+nav = wb.PyNavigator(program, ["0", "-c", "horizon=12"])
+
+route = []                                  # empty route: the whole search space
+facets = ib.compute_facets(nav, route, [])
+ib.facet_count(facets)                       # `count`  / `#?`
+ib.answer_set_count(nav, route, [])          # `solvecount` / `#!`
+ib.facet_counts(nav, facets, route, [])      # `counts` / `#??`
+```
+
+The functions in `interpreter_bindings` mirror the REPL commands and print to
+stdout from Rust. When you interleave them with Python `print`, flush the Python
+side (`print(..., flush=True)`) or the output arrives out of order.
+
+`test/navigate_plan_space.py` is a runnable example: it reports the facet count,
+the plan count and the significance of every facet for a planning problem
+(`test/blocks.lp`, a blocksworld instance, by default).
+
+```console
+uv run test/navigate_plan_space.py --horizon 12 test/blocks.lp
+```
 
 ## Scripting (interpreter mode)
 
